@@ -1,0 +1,5 @@
+program:
+  - load: 893
+  - read: 370
+  - write: 1014
+  - div: 169
