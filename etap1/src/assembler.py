@@ -1,32 +1,23 @@
-# src/assembler.py
 import argparse
 import yaml
 
-# --- Коды операций ---
-OPCODES = {
-    "load": 8,
-    "read": 25,
-    "write": 4,
-    "div": 27,
-}
-
 def encode_load(const):
-    # A=8, B=const (27 бит), команда: 4 байта, little-endian
+    # A=8 (5 бит), B=const (27 бит), команда: 4 байта, little-endian
     val = (8 & 0x1F) | ((const & 0x1FFFFFF) << 5)
     return val.to_bytes(4, "little")
 
 def encode_read(addr):
-    # A=25, B=addr (11 бит), команда: 2 байта
+    # A=25 (5 бит), B=addr (11 бит), команда: 2 байта
     val = (25 & 0x1F) | ((addr & 0x7FF) << 5)
     return val.to_bytes(2, "little")
 
 def encode_write(addr):
-    # A=4, B=addr (11 бит), команда: 2 байта
+    # A=4 (5 бит), B=addr (11 бит), команда: 2 байта
     val = (4 & 0x1F) | ((addr & 0x7FF) << 5)
     return val.to_bytes(2, "little")
 
 def encode_div(addr):
-    # A=27, B=addr (11 бит), команда: 2 байта
+    # A=27 (5 бит), B=addr (11 бит), команда: 2 байта
     val = (27 & 0x1F) | ((addr & 0x7FF) << 5)
     return val.to_bytes(2, "little")
 
@@ -53,28 +44,25 @@ def assemble(instructions):
     return binary
 
 def format_bytes(binary):
-    parts = []
-    for b in binary:
-        parts.append(f"0x{b:02X}")
-    return ", ".join(parts)
+    return ", ".join(f"0x{b:02X}" for b in binary)
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", required=True, help="YAML-файл с программой")
+    parser.add_argument("-i", "--input", required=True, help="YAML-файл программы")
     parser.add_argument("-o", "--output", required=True, help="Выходной .bin файл")
-    parser.add_argument("--test", action="store_true", help="Режим теста: вывести байты")
+    parser.add_argument("--test", action="store_true", help="Режим теста: печать байтов")
     args = parser.parse_args()
 
     instructions = parse_yaml(args.input)
     binary = assemble(instructions)
 
-    if args.test:
-        print(format_bytes(binary))
-
+    #Этап 2: пишем в файл
     with open(args.output, "wb") as f:
         f.write(binary)
 
-    print(f"Собрано {len(instructions)} команд → {len(binary)} байт")
+    if args.test:
+        print(format_bytes(binary))
+    print(f"Ассемблировано {len(instructions)} команд → {len(binary)} байт")
 
 if __name__ == "__main__":
     main()
