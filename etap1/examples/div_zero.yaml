@@ -1,0 +1,8 @@
+program:
+  - load: 42
+  - write: 5
+  - load: 100
+  - div: 5   # 100 // 42 = 2 — OK
+  - load: 0
+  - write: 6 # mem[6] = 0
+  - div: 6   #  деление на ноль → ОШИБКА

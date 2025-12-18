@@ -1,9 +1,10 @@
+# src/interpreter.py
 import argparse
 import struct
 import csv
+import sys
 
 def decode_instruction(byte_stream, offset):
-    # Читаем первый байт, чтобы определить opcode (младшие 5 бит)
     if offset >= len(byte_stream):
         return None, 0
     first_byte = byte_stream[offset]
@@ -11,29 +12,31 @@ def decode_instruction(byte_stream, offset):
 
     if opcode == 8:  # LOAD: 4 байта
         if offset + 4 > len(byte_stream):
-            raise ValueError("Недостаточно байт для LOAD")
+            print("Ошибка: неполная команда LOAD")
+            sys.exit(1)
         val = struct.unpack("<I", byte_stream[offset:offset+4])[0]
         const = (val >> 5) & 0x1FFFFFF
         return {"op": "LOAD", "arg": const}, 4
 
-    elif opcode in (25, 4, 27):  # READ, WRITE, DIV: по 2 байта
+    elif opcode in (25, 4, 27):  # READ, WRITE, DIV: 2 байта
         if offset + 2 > len(byte_stream):
-            raise ValueError("Недостаточно байт для команды")
+            print("Ошибка: неполная команда")
+            sys.exit(1)
         val = struct.unpack("<H", byte_stream[offset:offset+2])[0]
         addr = (val >> 5) & 0x7FF
         op_name = {25: "READ", 4: "WRITE", 27: "DIV"}[opcode]
         return {"op": op_name, "addr": addr}, 2
 
     else:
-        raise ValueError(f"Неизвестный opcode: {opcode} (байт 0x{first_byte:02X})")
+        print(f"Ошибка: неизвестный opcode {opcode} (байт 0x{first_byte:02X})")
+        sys.exit(1)
 
 def run_program(binary, test_mode=False):
-    # Память — 1024 ячейки
     mem = [0] * 1024
     acc = 0
-    pc = 0  # program counter
+    pc = 0
 
-    # Декодируем программу
+    # Декодируем
     instructions = []
     offset = 0
     while offset < len(binary):
@@ -56,29 +59,34 @@ def run_program(binary, test_mode=False):
         elif op == "READ":
             addr = instr["addr"]
             if addr >= len(mem):
-                raise IndexError(f"READ: адрес {addr} вне памяти")
+                print(f"Ошибка: READ — адрес {addr} вне диапазона [0, 1023]")
+                sys.exit(1)
             acc = mem[addr]
             if test_mode:
-                print(f"[{i}] READ {addr} → ACC = {acc} (mem[{addr}] = {mem[addr]})")
+                print(f"[{i}] READ {addr} → ACC = {acc}")
         elif op == "WRITE":
             addr = instr["addr"]
             if addr >= len(mem):
-                raise IndexError(f"WRITE: адрес {addr} вне памяти")
+                print(f"Ошибка: WRITE — адрес {addr} вне диапазона [0, 1023]")
+                sys.exit(1)
             mem[addr] = acc
             if test_mode:
                 print(f"[{i}] WRITE {addr} ← ACC = {acc}")
         elif op == "DIV":
             addr = instr["addr"]
             if addr >= len(mem):
-                raise IndexError(f"DIV: адрес {addr} вне памяти")
+                print(f"Ошибка: DIV — адрес {addr} вне диапазона [0, 1023]")
+                sys.exit(1)
             divisor = mem[addr]
             if divisor == 0:
-                raise ZeroDivisionError(f"DIV: деление на ноль в mem[{addr}]")
+                print(f"Ошибка: DIV — деление на ноль в mem[{addr}]")
+                sys.exit(1)
             acc //= divisor
             if test_mode:
-                print(f"[{i}] DIV {addr} → ACC = {acc} (деление на mem[{addr}] = {divisor})")
+                print(f"[{i}] DIV {addr} → ACC = {acc} (деление на {divisor})")
         else:
-            raise ValueError(f"Неизвестная команда: {op}")
+            print(f"Ошибка: неизвестная команда '{op}'")
+            sys.exit(1)
 
     if test_mode:
         print(f"Выполнено. ACC = {acc}")
@@ -86,23 +94,34 @@ def run_program(binary, test_mode=False):
     return mem, acc
 
 def save_memory_dump(mem, path):
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["address", "value"])
-        for i, val in enumerate(mem):
-            if val != 0:  # только ненулевые ячейки (опционально)
-                writer.writerow([i, val])
-    print(f"Дамп памяти сохранён: {path}")
+    try:
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["address", "value"])
+            for i, val in enumerate(mem):
+                if val != 0:
+                    writer.writerow([i, val])
+        print(f"Дамп сохранён: {path}")
+    except Exception as e:
+        print(f"Ошибка записи CSV: {e}")
+        sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", required=True, help="Бинарный файл (.bin)")
     parser.add_argument("-o", "--output", help="CSV-дамп памяти")
-    parser.add_argument("--test", action="store_true", help="Режим теста: вывод шагов")
+    parser.add_argument("--test", action="store_true", help="Режим теста: пошаговый вывод")
     args = parser.parse_args()
 
-    with open(args.input, "rb") as f:
-        binary = f.read()
+    try:
+        with open(args.input, "rb") as f:
+            binary = f.read()
+    except FileNotFoundError:
+        print(f"Файл не найден: {args.input}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Ошибка чтения файла: {e}")
+        sys.exit(1)
 
     mem, acc = run_program(binary, test_mode=args.test)
 
