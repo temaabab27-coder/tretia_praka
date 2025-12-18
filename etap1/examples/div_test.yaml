@@ -1,0 +1,8 @@
+program:
+  - load: 100
+  - write: 10      # mem[10] = 100
+  - load: 20
+  - write: 11      # mem[11] = 20
+  - load: 100
+  - div: 11        # 100 // 20 = 5 → acc = 5
+  - write: 12      # mem[12] = 5
